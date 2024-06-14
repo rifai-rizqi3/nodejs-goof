@@ -22,8 +22,8 @@ pipeline {
         stage('Build Docker Image') {
             agent {
                 docker {
-                    image 'docker:dind'
-                    args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
+                    image 'docker:latest'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {
@@ -33,8 +33,8 @@ pipeline {
         stage('Push Image to Docker Registry') {
             agent {
                 docker {
-                    image 'docker:dind'
-                    args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
+                    image 'docker:latest'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {
