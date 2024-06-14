@@ -1,10 +1,25 @@
 pipeline {
-  agent none
-  environment {
-      DOCKERHUB_CREDENTIALS = credentials('DockerLogin')
-  }
-  stages {
-    stage('Build Docker Image') {
+    agent none
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('DockerLogin')
+    }
+    stages {
+        stage('Secret Scanning Using Trufflehog') {
+            agent {
+                docker {
+                    image 'trufflesecurity/trufflehog:latest'
+                    args '--user root --entrypoint='
+                }
+            }
+            steps {
+                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    sh 'trufflehog filesystem . --exclude-paths trufflehog-excluded-paths.txt --fail --json > trufflehog-scan-result.json'
+                }
+                sh 'cat trufflehog-scan-result.json'
+                archiveArtifacts artifacts: 'trufflehog-scan-result.json'
+            }
+        }
+        stage('Build Docker Image') {
             agent {
                 docker {
                     image 'docker:dind'
@@ -27,10 +42,11 @@ pipeline {
                 sh 'docker push xenjutsu/nodejsgoof:0.1'
             }
         }
-    stage('Deploy Docker Image') {
+        stage('Deploy Docker Image') {
             agent {
                 docker {
                     image 'kroniak/ssh-client'
+                    args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
                 }
             }
             steps {
@@ -44,5 +60,5 @@ pipeline {
                 }
             }
         }
-  }
+    }
 }
