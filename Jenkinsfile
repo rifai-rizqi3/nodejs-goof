@@ -50,7 +50,7 @@ pipeline {
                 }
             }
             steps {
-                withCredentials([sshUserPrivateKey(credentialsId: "DeploymentSSHKey", keyFileVariable: 'keyfile')]) {
+                withCredentials([sshUserPrivateKey(credentialsId: "RnD", keyFileVariable: 'keyfile')]) {
                     sh 'ssh -i ${keyfile} -o StrictHostKeyChecking=no root@139.162.18.93 "echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin"'
                     sh 'ssh -i ${keyfile} -o StrictHostKeyChecking=no root@139.162.18.93 docker pull xenjutsu/nodejsgoof:0.1'
                     sh 'ssh -i ${keyfile} -o StrictHostKeyChecking=no root@139.162.18.93 docker rm --force mongodb'
