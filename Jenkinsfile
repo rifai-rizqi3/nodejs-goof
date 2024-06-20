@@ -1,63 +1,42 @@
 pipeline {
-    agent none
+    agent any
+
     environment {
-        DOCKERHUB_CREDENTIALS = credentials('DockerLogin')
+        DOCKER_COMPOSE = 'docker-compose'
     }
+
     stages {
-        stage('Secret Scanning Using Trufflehog') {
-            agent {
-                docker {
-                    image 'trufflesecurity/trufflehog:latest'
-                    args '--user root --entrypoint='
-                }
-            }
+        stage('Checkout') {
             steps {
-                catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                    sh 'trufflehog filesystem . --exclude-paths trufflehog-excluded-paths.txt --fail --json > trufflehog-scan-result.json'
-                }
-                sh 'cat trufflehog-scan-result.json'
-                archiveArtifacts artifacts: 'trufflehog-scan-result.json'
+                // Checkout the code from GitHub repository
+                git 'https://github.com/rifai-rizqi3/nodejs-goof.git'
             }
         }
-        stage('Build Docker Image') {
-            agent {
-                docker {
-                    image 'docker:latest'
-                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
+
+        stage('Build') {
             steps {
-                sh 'docker build -t xenjutsu/nodejsgoof:0.1 .'
+                script {
+                    // Build the Docker images
+                    sh "${DOCKER_COMPOSE} build"
+                }
             }
         }
-        stage('Push Image to Docker Registry') {
-            agent {
-                docker {
-                    image 'docker:latest'
-                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
+
+        stage('Deploy') {
             steps {
-                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                sh 'docker push xenjutsu/nodejsgoof:0.1'
+                script {
+                    // Start the Docker containers
+                    sh "${DOCKER_COMPOSE} up -d"
+                }
             }
         }
-        stage('Deploy Docker Image') {
-            agent {
-                docker {
-                    image 'kroniak/ssh-client'
-                    args '--user root -v /var/run/docker.sock:/var/run/docker.sock'
-                }
-            }
-            steps {
-                withCredentials([sshUserPrivateKey(credentialsId: "RnD", keyFileVariable: 'keyfile')]) {
-                    sh 'ssh -i ${keyfile} -o StrictHostKeyChecking=no root@139.162.18.93 "echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin"'
-                    sh 'ssh -i ${keyfile} -o StrictHostKeyChecking=no root@139.162.18.93 docker pull xenjutsu/nodejsgoof:0.1'
-                    sh 'ssh -i ${keyfile} -o StrictHostKeyChecking=no root@139.162.18.93 docker rm --force mongodb'
-                    sh 'ssh -i ${keyfile} -o StrictHostKeyChecking=no root@139.162.18.93 docker run --detach --name mongodb -p 27017:27017 mongo:3'
-                    sh 'ssh -i ${keyfile} -o StrictHostKeyChecking=no root@139.162.18.93 docker rm --force nodejsgoof'
-                    sh 'ssh -i ${keyfile} -o StrictHostKeyChecking=no root@139.162.18.93 docker run -it --detach -p 3001:3001 --name nodejsgoof --network host xenjutsu/nodejsgoof:0.1'
-                }
+    }
+
+    post {
+        always {
+            script {
+                // Clean up Docker containers
+                sh "${DOCKER_COMPOSE} down"
             }
         }
     }
